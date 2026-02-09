@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>西安高新区二手房小区地图</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        #map { width: 100%; height: 100%; }
+        .info-panel {
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15); max-width: 260px;
+            font-size: 13px;
+        }
+        .info-panel h3 { margin: 0 0 8px 0; font-size: 15px; }
+        .legend-item { display: flex; align-items: center; margin: 3px 0; font-size: 12px; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.1); }
+        .filter-btn {
+            display: inline-block; padding: 4px 10px; margin: 2px;
+            border: 1px solid #ddd; border-radius: 4px; cursor: pointer;
+            font-size: 12px; background: white; user-select: none;
+        }
+        .filter-btn:hover { background: #f5f5f5; }
+        .filter-btn.active { background: #1890ff; color: white; border-color: #1890ff; }
+        .stats { color: #666; font-size: 12px; margin: 4px 0; }
+        .popup-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+        .popup-price { color: #e74c3c; font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+        .popup-detail { font-size: 12px; color: #666; line-height: 1.6; }
+        .zone-label {
+            background: rgba(255,255,255,0.85) !important;
+            border: none !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15) !important;
+            font-size: 13px !important;
+            font-weight: bold !important;
+            padding: 3px 8px !important;
+            border-radius: 4px !important;
+        }
+        .marker-label {
+            background: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            font-size: 11px !important;
+            font-weight: 500 !important;
+            color: #333 !important;
+            white-space: nowrap !important;
+            padding: 0 !important;
+            margin-top: 2px !important;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div class="info-panel">
+    <h3>西安高新区二手房小区</h3>
+    <div class="stats" id="stats">共 60 个小区</div>
+    <div style="font-size: 11px; color: #999; margin-bottom: 8px;">点击标记查看详情</div>
+    <div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e74c3c"></div>高新一期 (28)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3498db"></div>高新二期 (26)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#2ecc71"></div>高新三期 (1)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f39c12"></div>软东 (2)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#9b59b6"></div>软西 (3)</div>
+    </div>
+    <div style="margin-top: 8px;">
+        <div class="filter-btn active" onclick="toggleFilter('all')">全部</div>
+        <div class="filter-btn" onclick="toggleFilter('高新一期')">一期</div>
+        <div class="filter-btn" onclick="toggleFilter('高新二期')">二期</div>
+        <div class="filter-btn" onclick="toggleFilter('高新三期')">三期</div>
+        <div class="filter-btn" onclick="toggleFilter('软东')">软东</div>
+        <div class="filter-btn" onclick="toggleFilter('软西')">软西</div>
+    </div>
+</div>
+
+<script>
+// 注意：高德坐标(GCJ-02)与WGS-84有偏移，这里做近似修正
+// 实际偏移约 lng-0.0065, lat-0.0060（西安地区）
+function gcj02ToWgs84Approx(lng, lat) {
+    return [lat - 0.0060, lng - 0.0065];
+}
+
+const data = [
+    {name:"保利天悦悦峰",price:null,lng:108.872434,lat:34.216471,area:"高新二期",units:168,year:2023},
+    {name:"香榭御澄",price:33439,lng:108.898679,lat:34.210844,area:"高新二期",units:130,year:2020},
+    {name:"万达天樾",price:27297,lng:108.942796,lat:34.197860,area:"高新二期",units:127,year:2018},
+    {name:"中华世纪城",price:15022,lng:108.884696,lat:34.240121,area:"高新一期",units:124,year:2010},
+    {name:"融侨城",price:15081,lng:108.882160,lat:34.246516,area:"高新一期",units:122,year:2011},
+    {name:"万熙天地",price:18036,lng:108.890133,lat:34.223736,area:"高新二期",units:111,year:2021},
+    {name:"国瑞西安金融中心",price:12035,lng:108.882196,lat:34.193013,area:"高新二期",units:104,year:2019},
+    {name:"紫薇田园都市",price:17120,lng:108.859759,lat:34.173299,area:"高新二期",units:101,year:2005},
+    {name:"恒大城",price:11046,lng:108.866984,lat:34.245522,area:"高新一期",units:98,year:2010},
+    {name:"宏府麒麟山",price:10254,lng:108.861642,lat:34.245340,area:"高新一期",units:97,year:2016},
+    {name:"天地源枫林绿洲",price:24971,lng:108.897500,lat:34.214193,area:"高新二期",units:93,year:2008},
+    {name:"中建国熙台",price:19937,lng:108.880746,lat:34.241803,area:"高新一期",units:91,year:2015},
+    {name:"逸翠园四期",price:29750,lng:108.869902,lat:34.175580,area:"高新二期",units:87,year:2016},
+    {name:"逸翠园",price:26635,lng:108.872500,lat:34.181293,area:"高新二期",units:84,year:2009},
+    {name:"中航华府",price:14480,lng:108.894650,lat:34.238211,area:"高新一期",units:83,year:2017},
+    {name:"苏宁云著",price:16331,lng:108.836494,lat:34.219955,area:"软西",units:82,year:2022},
+    {name:"万科高新华府",price:17117,lng:108.888828,lat:34.180173,area:"高新二期",units:80,year:2017},
+    {name:"都市之门写字楼",price:11381,lng:108.888230,lat:34.195540,area:"高新二期",units:76,year:2010},
+    {name:"万科翡翠国宾",price:28615,lng:108.873214,lat:34.237379,area:"高新二期",units:72,year:2021},
+    {name:"融城东海",price:7772,lng:108.890133,lat:34.223736,area:"高新二期",units:68,year:2015},
+    {name:"莱安逸珲",price:20423,lng:108.875706,lat:34.243992,area:"高新一期",units:65,year:2015},
+    {name:"金辉高新云璟",price:15009,lng:108.873333,lat:34.232334,area:"高新一期",units:64,year:2020},
+    {name:"金地中央公园",price:20257,lng:108.897873,lat:34.178863,area:"高新二期",units:63,year:null},
+    {name:"东方米兰",price:11852,lng:108.879599,lat:34.244622,area:"高新一期",units:62,year:2011},
+    {name:"香榭兰廷",price:22711,lng:108.901547,lat:34.210440,area:"高新二期",units:62,year:2015},
+    {name:"铭城国际社区",price:10765,lng:108.894650,lat:34.238211,area:"高新一期",units:56,year:2015},
+    {name:"南海高芯悦澜",price:14138,lng:108.850354,lat:34.237861,area:"高新一期",units:56,year:2025},
+    {name:"万达天玺",price:35026,lng:108.892041,lat:34.212170,area:"高新二期",units:56,year:2015},
+    {name:"高新红枫林",price:13557,lng:108.881164,lat:34.236144,area:"高新一期",units:55,year:2011},
+    {name:"昆明花园",price:11414,lng:108.890133,lat:34.223736,area:"高新一期",units:55,year:2011},
+    {name:"绿地世纪城",price:19673,lng:108.888230,lat:34.195540,area:"高新二期",units:55,year:2008},
+    {name:"天地源丹轩坊",price:43303,lng:108.897603,lat:34.220501,area:"高新一期",units:54,year:2017},
+    {name:"天地源云水天境",price:20853,lng:108.832419,lat:34.216451,area:"软西",units:54,year:2024},
+    {name:"中建群贤汇",price:13875,lng:108.883389,lat:34.244832,area:"高新一期",units:51,year:2012},
+    {name:"中国铁建瑞园",price:12075,lng:108.876954,lat:34.241087,area:"高新一期",units:51,year:2014},
+    {name:"伟业公馆",price:17194,lng:108.877341,lat:34.236718,area:"高新一期",units:50,year:2016},
+    {name:"天朗蓝湖树",price:14102,lng:108.871670,lat:34.236353,area:"高新一期",units:49,year:2014},
+    {name:"中大国际九号",price:89622,lng:108.897231,lat:34.222482,area:"高新一期",units:48,year:2017},
+    {name:"旭景碧泽园",price:10105,lng:108.873460,lat:34.245376,area:"高新一期",units:47,year:2005},
+    {name:"金辉悦府",price:13618,lng:108.866705,lat:34.251925,area:"高新一期",units:46,year:2016},
+    {name:"太和时代广场",price:13437,lng:108.887431,lat:34.247553,area:"高新一期",units:46,year:2017},
+    {name:"绿城海棠三章",price:25063,lng:108.857023,lat:34.219903,area:"软东",units:45,year:null},
+    {name:"金地西沣公元",price:15649,lng:108.890133,lat:34.223736,area:"高新二期",units:45,year:2015},
+    {name:"中海学仕里",price:28278,lng:108.890133,lat:34.223736,area:"高新三期",units:45,year:2025},
+    {name:"金泰新理城",price:22510,lng:108.865428,lat:34.208121,area:"高新二期",units:44,year:2015},
+    {name:"中铁缤纷南郡",price:17075,lng:108.890133,lat:34.223736,area:"高新二期",units:44,year:2013},
+    {name:"天地源丹轩梓园",price:57737,lng:108.899296,lat:34.223554,area:"高新一期",units:40,year:2012},
+    {name:"云顶园",price:24753,lng:108.897124,lat:34.219047,area:"高新一期",units:40,year:2010},
+    {name:"紫薇臻品",price:12440,lng:108.881220,lat:34.239039,area:"高新一期",units:40,year:2007},
+    {name:"兰亭坊",price:32963,lng:108.898493,lat:34.210820,area:"高新二期",units:38,year:2012},
+    {name:"国宾中央区",price:19925,lng:108.873214,lat:34.237379,area:"高新二期",units:36,year:2015},
+    {name:"中海华庭",price:13353,lng:108.892635,lat:34.245181,area:"高新一期",units:36,year:2006},
+    {name:"枫林华府",price:12425,lng:108.881164,lat:34.236144,area:"高新一期",units:35,year:2011},
+    {name:"创新公园",price:7244,lng:108.883846,lat:34.252983,area:"高新二期",units:32,year:null},
+    {name:"长安龙胤",price:62303,lng:108.892902,lat:34.209019,area:"高新二期",units:31,year:2019},
+    {name:"枫叶新都市",price:18303,lng:108.885404,lat:34.225208,area:"高新一期",units:30,year:2003},
+    {name:"逸翠园i都会",price:18210,lng:108.885614,lat:34.185321,area:"高新二期",units:30,year:2010},
+    {name:"东方米兰国际城",price:16277,lng:108.861051,lat:34.229414,area:"软东",units:29,year:2015},
+    {name:"中建轨交山海境",price:15730,lng:108.825787,lat:34.229784,area:"软西",units:29,year:null},
+    {name:"天地源枫林意树",price:23540,lng:108.890133,lat:34.223736,area:"高新二期",units:29,year:2012}
+];
+
+const colorMap = {
+    '高新一期': '#e74c3c',
+    '高新二期': '#3498db',
+    '高新三期': '#2ecc71',
+    '软东': '#f39c12',
+    '软西': '#9b59b6'
+};
+
+const map = L.map('map').setView([34.215, 108.878], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+}).addTo(map);
+
+// 片区边界多边形（WGS-84坐标，已转换）
+// 高新一期：南二环以南，科技路以北，太白路以东，丈八北路/唐延路以西
+// 高新二期：科技路以南，绕城以北，西三环以东
+// 高新三期/CID：西太路以西，丝路科学城
+// 软东：西三环以东，鱼化寨片区
+// 软西：西三环以西，软件新城
+const zones = [
+    {
+        name: '高新一期',
+        color: '#e74c3c',
+        coords: [
+            [34.249, 108.868], [34.249, 108.900], [34.245, 108.900],
+            [34.240, 108.898], [34.230, 108.898], [34.225, 108.896],
+            [34.222, 108.895], [34.222, 108.868], [34.230, 108.862],
+            [34.240, 108.856], [34.245, 108.860], [34.249, 108.868]
+        ]
+    },
+    {
+        name: '高新二期',
+        color: '#3498db',
+        coords: [
+            [34.222, 108.860], [34.222, 108.898], [34.218, 108.900],
+            [34.214, 108.902], [34.208, 108.902], [34.200, 108.900],
+            [34.192, 108.898], [34.185, 108.895], [34.175, 108.892],
+            [34.168, 108.890], [34.168, 108.860], [34.175, 108.858],
+            [34.185, 108.858], [34.195, 108.858], [34.205, 108.858],
+            [34.215, 108.858], [34.222, 108.860]
+        ]
+    },
+    {
+        name: '高新三期',
+        color: '#2ecc71',
+        coords: [
+            [34.200, 108.810], [34.200, 108.845], [34.185, 108.850],
+            [34.170, 108.855], [34.155, 108.855], [34.145, 108.850],
+            [34.140, 108.835], [34.140, 108.810], [34.150, 108.800],
+            [34.165, 108.795], [34.180, 108.798], [34.190, 108.802],
+            [34.200, 108.810]
+        ]
+    },
+    {
+        name: '软东',
+        color: '#f39c12',
+        coords: [
+            [34.235, 108.845], [34.235, 108.868], [34.230, 108.868],
+            [34.222, 108.862], [34.215, 108.858], [34.215, 108.845],
+            [34.220, 108.842], [34.228, 108.842], [34.235, 108.845]
+        ]
+    },
+    {
+        name: '软西',
+        color: '#9b59b6',
+        coords: [
+            [34.235, 108.815], [34.235, 108.845], [34.228, 108.845],
+            [34.222, 108.845], [34.215, 108.845], [34.210, 108.845],
+            [34.205, 108.845], [34.200, 108.840], [34.200, 108.815],
+            [34.210, 108.812], [34.220, 108.812], [34.230, 108.815],
+            [34.235, 108.815]
+        ]
+    }
+];
+
+let zoneLayers = [];
+function renderZones(filter) {
+    zoneLayers.forEach(l => map.removeLayer(l));
+    zoneLayers = [];
+
+    const show = filter === 'all' ? zones : zones.filter(z => z.name === filter);
+    show.forEach(z => {
+        const polygon = L.polygon(z.coords, {
+            color: z.color,
+            weight: 2,
+            opacity: 0.6,
+            fillColor: z.color,
+            fillOpacity: 0.08,
+            dashArray: '6, 4'
+        }).addTo(map);
+        polygon.bindTooltip(z.name, {
+            permanent: filter === 'all',
+            direction: 'center',
+            className: 'zone-label'
+        });
+        zoneLayers.push(polygon);
+    });
+}
+
+let markers = [];
+let currentFilter = 'all';
+
+// 自定义彩色图钉图标
+function makeIcon(color) {
+    return L.divIcon({
+        className: '',
+        html: `<svg width="24" height="36" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+            <circle cx="12" cy="12" r="5" fill="#fff" opacity="0.9"/>
+        </svg>`,
+        iconSize: [24, 36],
+        iconAnchor: [12, 36],
+        popupAnchor: [0, -36]
+    });
+}
+
+function renderMarkers(filter) {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+
+    const filtered = filter === 'all' ? data : data.filter(d => d.area === filter);
+
+    filtered.forEach(d => {
+        const latlng = gcj02ToWgs84Approx(d.lng, d.lat);
+        const color = colorMap[d.area];
+
+        const marker = L.marker(latlng, { icon: makeIcon(color) }).addTo(map);
+
+        // 小区名标签
+        marker.bindTooltip(d.name, {
+            permanent: true,
+            direction: 'right',
+            offset: [12, -18],
+            className: 'marker-label'
+        });
+
+        const priceText = d.price ? d.price.toLocaleString() + ' 元/㎡' : '暂无';
+        const yearText = d.year || '未知';
+
+        marker.bindPopup(`
+            <div class="popup-name">${d.name}</div>
+            <div class="popup-price">${priceText}</div>
+            <div class="popup-detail">
+                片区: ${d.area}<br>
+                在售: ${d.units} 套<br>
+                建成: ${yearText}年
+            </div>
+        `);
+
+        markers.push(marker);
+    });
+
+    document.getElementById('stats').textContent = `显示 ${filtered.length} / ${data.length} 个小区`;
+}
+
+function toggleFilter(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        const isActive = (filter === 'all' && btn.textContent === '全部') ||
+                         btn.textContent.includes(filter.replace('高新', ''));
+        btn.classList.toggle('active', isActive);
+    });
+    renderZones(filter);
+    renderMarkers(filter);
+}
+
+renderZones('all');
+renderMarkers('all');
+</script>
+</body>
+</html>
