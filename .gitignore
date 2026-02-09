@@ -1,0 +1,8 @@
+# Screenshots (large binary files)
+data/*_screenshot.png
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
