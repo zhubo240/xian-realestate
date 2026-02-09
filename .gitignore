@@ -1,8 +1,15 @@
 # Screenshots (large binary files)
-data/*_screenshot.png
+*.png
 
 # OS
 .DS_Store
 
 # Editor
 .vscode/
+
+# Python
+__pycache__/
+*.pyc
+
+# Environment
+.env
