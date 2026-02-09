@@ -1,51 +1,80 @@
-# 西安房地产数据集
+# 西安高新区房地产数据集
 
-西安市小区级房地产数据采集与可视化项目。
+西安市高新区小区级房地产数据采集、地理编码与可视化项目。
 
-## 项目目标
+## 项目概况
 
-采集西安所有小区的基础数据（名称、位置、均价、户型、年龄等），并在地图上展示。
+- **二手房小区**：523 个住宅小区（fang.com 高新区 1,107 个中过滤掉写字楼/商铺/车位等）
+- **新房楼盘**：171 个（含 110 个命名项目 + 61 个土地地块）
+- **合并总计**：645 个数据点（去重后）
+- **地理编码覆盖率**：ESF 95%+，新房 92.4%
 
 ## 技术方案
 
 - **数据源**：房天下 (fang.com)
-- **经纬度**：高德地图 API（免费）
-- **存储格式**：CSV
+- **经纬度**：高德地图 API（POI Search v5 + Geocoding v3）
+- **坐标系**：WGS-84（从高德 GCJ-02 转换，西安偏移量 lng-0.0065, lat-0.0060）
+- **存储格式**：CSV (UTF-8 with BOM)
+- **可视化**：Leaflet.js 交互地图
 
 ## 目录结构
 
 ```
 xian-realestate/
 ├── README.md
-├── data/                  # 数据文件
-│   └── qujiang_communities.csv   # 曲江一期测试数据（10个小区）
-├── docs/                  # 文档
-│   └── exploration.md     # 探索记录（数据源调研、方案对比）
-└── scripts/               # 采集脚本（待开发）
+├── scrape_gaoxin_esf.py        # 二手房爬虫（56页，urllib+正则）
+├── geocode_communities.py      # 二手房地理编码（高德 API）
+├── geocode_newhouse.py         # 新房地理编码（高德 API）
+├── merge_and_map.py            # 数据合并 + HTML 地图生成
+├── data/
+│   ├── gaoxin_esf_all.csv          # 二手房原始数据（523条）
+│   ├── gaoxin_esf_all_geo.csv      # 二手房+坐标+片区（523条）
+│   ├── gaoxin_esf_communities.csv  # 二手房精选版（60条，早期）
+│   ├── gaoxin_newhouse.csv         # 新房早期数据（60条，3页）
+│   ├── gaoxin_newhouse_all.csv     # 新房完整数据（171条，9页）
+│   ├── gaoxin_newhouse_all_geo.csv # 新房+坐标+片区（171条）
+│   ├── gaoxin_merged_all.csv       # 合并数据（645条）
+│   ├── gaoxin_map.html             # 交互地图（645个标记）
+│   ├── gaoxin_summary.md           # 数据分析报告
+│   ├── gaoxin_map_screenshot.png   # 地图截图
+│   └── qujiang_communities.csv     # 曲江测试数据（10条）
+├── docs/
+│   └── exploration.md              # 探索记录
+└── *.png                           # 历史地图截图
 ```
 
-## 数据字段
+## 脚本说明
 
-| 字段 | 说明 | 来源 |
+| 脚本 | 功能 | 输入 | 输出 |
+|------|------|------|------|
+| `scrape_gaoxin_esf.py` | 抓取二手房小区数据 | fang.com 56页 | `gaoxin_esf_all.csv` |
+| `geocode_communities.py` | 二手房地理编码+片区分类 | `gaoxin_esf_all.csv` | `gaoxin_esf_all_geo.csv` |
+| `geocode_newhouse.py` | 新房地理编码+片区分类 | `gaoxin_newhouse_all.csv` | `gaoxin_newhouse_all_geo.csv` |
+| `merge_and_map.py` | 合并数据+生成地图 | `*_geo.csv` | `gaoxin_merged_all.csv` + `gaoxin_map.html` |
+
+## 地图功能
+
+`data/gaoxin_map.html` 提供以下交互功能：
+
+- **片区筛选**：高新一期/二期/三期/软件新城/国际社区/其他
+- **类型筛选**：二手房/新房
+- **价格区间**：自定义最低-最高价过滤
+- **标记详情**：点击查看名称、均价、片区、建成年份等
+- **片区边界**：虚线多边形标注各片区范围
+
+## 片区分布
+
+| 片区 | 数量 | 说明 |
 |------|------|------|
-| 小区名称 | — | 房天下 |
-| 均价(元/㎡) | 挂牌均价 | 房天下 |
-| 地址 | 详细地址 | 房天下 |
-| 建成年份 | — | 房天下 |
-| 总户数 | — | 房天下 |
-| 容积率 | — | 房天下 |
-| 绿化率(%) | — | 房天下 |
-| 物业费(元/㎡/月) | — | 房天下 |
-| 主力户型面积(㎡) | — | 房天下 |
-| 纬度 | WGS84 | 高德 API |
-| 经度 | WGS84 | 高德 API |
+| 高新一期 | 217 | 科技路以北，南二环以南 |
+| 高新二期 | 293 | 科技路以南，绕城以北 |
+| 高新三期 | 64 | 中央创新区（CID）+ 丝路科学城 |
+| 软件新城 | 50 | 天谷路/云水路一带 |
+| 国际社区 | 7 | 灵秀/灵韵/北张路区域 |
+| 其他 | 14 | 未明确归类 |
 
-## 当前进度
+## 注意事项
 
-- [x] 数据源调研
-- [x] 开源爬虫评估（lianjia-beike-spider 等）
-- [x] 曲江一期 10 个小区测试采集
-- [ ] 申请高德地图 API key
-- [ ] 编写批量采集脚本
-- [ ] 全市数据采集
-- [ ] 地图可视化
+- fang.com 快速请求 ~30 次后会触发验证码，二手房爬虫设置 2 秒间隔
+- 新房页面使用客户端 JS 分页，无法用 urllib 抓取后续页面，需浏览器自动化
+- 高德 API 免费额度 5,000 次/天，足够覆盖全量数据
